@@ -1,0 +1,170 @@
+import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { logger } from '../utils/logger';
+
+// Initialize AI providers
+const openai = process.env.OPENAI_API_KEY
+    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    : null;
+
+const genAI = process.env.GEMINI_API_KEY
+    ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+    : null;
+
+// Determine which provider to use
+const aiProvider = openai ? 'openai' : genAI ? 'gemini' : null;
+logger.info(`AI Provider: ${aiProvider || 'none configured'}`);
+
+interface ConversationMessage {
+    botUsername: string;
+    text: string;
+    isAiGenerated: boolean;
+}
+
+/**
+ * Generate AI response using OpenAI (primary) or Gemini (fallback)
+ */
+export async function generateResponse(
+    personality: string,
+    conversationHistory: ConversationMessage[],
+    respondingBotUsername: string
+): Promise<string> {
+    const systemPrompt = buildSystemPrompt(personality, respondingBotUsername);
+    const context = buildConversationContext(conversationHistory);
+
+    // Try OpenAI first
+    if (openai) {
+        try {
+            return await generateWithOpenAI(systemPrompt, context, respondingBotUsername);
+        } catch (error) {
+            logger.warn(`OpenAI failed, trying Gemini: ${(error as Error).message}`);
+        }
+    }
+
+    // Fall back to Gemini
+    if (genAI) {
+        try {
+            return await generateWithGemini(systemPrompt, context, respondingBotUsername);
+        } catch (error) {
+            logger.error(`Gemini also failed: ${(error as Error).message}`);
+            throw error;
+        }
+    }
+
+    throw new Error('No AI provider configured. Set OPENAI_API_KEY or GEMINI_API_KEY');
+}
+
+/**
+ * Generate response using OpenAI GPT-4
+ */
+async function generateWithOpenAI(
+    systemPrompt: string,
+    context: string,
+    botUsername: string
+): Promise<string> {
+    const response = await openai!.chat.completions.create({
+        model: 'gpt-4',
+        messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: context || 'Start a conversation.' },
+        ],
+        max_tokens: 500,
+        temperature: 0.8,
+    });
+
+    const text = response.choices[0]?.message?.content?.trim();
+    if (!text) throw new Error('Empty OpenAI response');
+
+    logger.debug(`OpenAI response: ${text.substring(0, 100)}...`);
+    return text;
+}
+
+/**
+ * Generate response using Google Gemini
+ */
+async function generateWithGemini(
+    systemPrompt: string,
+    context: string,
+    botUsername: string
+): Promise<string> {
+    const model = genAI!.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+    const prompt = `${systemPrompt}\n\nConversation:\n${context}\n\nRespond as @${botUsername}:`;
+
+    const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+            maxOutputTokens: 500,
+            temperature: 0.8,
+        },
+    });
+
+    const text = result.response.text().trim();
+    if (!text) throw new Error('Empty Gemini response');
+
+    logger.debug(`Gemini response: ${text.substring(0, 100)}...`);
+    return text;
+}
+
+/**
+ * Build system prompt based on bot personality
+ */
+function buildSystemPrompt(personality: string, botUsername: string): string {
+    return `You are a Telegram bot named @${botUsername}. Your personality is: ${personality}
+
+Rules:
+- Keep responses conversational and natural
+- Respond as if you're chatting in a group chat
+- Be engaging but not overly long (1-3 sentences usually)
+- React to what others said in the conversation
+- Stay in character with your personality
+- Don't use emojis excessively
+- Don't mention that you're an AI unless directly asked`;
+}
+
+/**
+ * Build conversation context
+ */
+function buildConversationContext(messages: ConversationMessage[]): string {
+    return messages
+        .slice(-10)
+        .map((msg) => `@${msg.botUsername}: ${msg.text}`)
+        .join('\n');
+}
+
+/**
+ * Generate a conversation starter
+ */
+export async function generateConversationStarter(
+    personality: string,
+    topic?: string
+): Promise<string> {
+    const prompt = topic
+        ? `Start a casual conversation about: ${topic}. Keep it brief.`
+        : `Start a casual conversation with a greeting. Keep it brief.`;
+
+    try {
+        if (openai) {
+            const response = await openai.chat.completions.create({
+                model: 'gpt-4',
+                messages: [
+                    { role: 'system', content: `Personality: ${personality}` },
+                    { role: 'user', content: prompt },
+                ],
+                max_tokens: 200,
+                temperature: 0.9,
+            });
+            return response.choices[0]?.message?.content?.trim() || 'Hello everyone!';
+        }
+
+        if (genAI) {
+            const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+            const result = await model.generateContent(`${personality}. ${prompt}`);
+            return result.response.text().trim() || 'Hello everyone!';
+        }
+    } catch (error) {
+        logger.error(`Starter generation failed: ${(error as Error).message}`);
+    }
+
+    return 'Hey everyone, how is it going?';
+}

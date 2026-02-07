@@ -1,0 +1,46 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Bot {
+  id          String    @id @default(uuid())
+  token       String    @unique
+  username    String
+  personality String
+  groupId     String
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  messages    Message[]
+}
+
+model Message {
+  id            String   @id @default(uuid())
+  botId         String
+  bot           Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+  groupId       String
+  text          String
+  timestamp     DateTime @default(now())
+  isAiGenerated Boolean  @default(false)
+  telegramMsgId BigInt?
+
+  @@index([groupId])
+  @@index([botId])
+  @@index([timestamp])
+}
+
+model Group {
+  id          String   @id @default(uuid())
+  telegramId  String   @unique
+  name        String
+  activeBots  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([telegramId])
+}
