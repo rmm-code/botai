@@ -81,13 +81,15 @@ export async function removeWebhook(token: string): Promise<boolean> {
 export async function sendMessage(
     token: string,
     chatId: string | number,
-    text: string
+    text: string,
+    replyToMessageId?: number
 ): Promise<number | null> {
     try {
         const bot = await initializeBot(token);
         const result = await bot.telegram.sendMessage(chatId, text, {
             parse_mode: 'Markdown',
-        });
+            reply_to_message_id: replyToMessageId,
+        } as any);
         logger.debug(`Message sent to chat ${chatId}: ${text.substring(0, 50)}...`);
         return result.message_id;
     } catch (error) {

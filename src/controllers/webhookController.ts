@@ -118,6 +118,7 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
                     groupTelegramId: chatId,
                     respondingBotUsername: nextBot.username,
                     personality: nextBot.personality,
+                    replyToMsgId: message.message_id, // Reply to the trigger message
                 });
 
                 logger.info(`Queued response from @${nextBot.username}`);

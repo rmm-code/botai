@@ -13,29 +13,18 @@ interface MessageJobData {
     groupTelegramId: string;
     respondingBotUsername: string;
     personality: string;
+    replyToMsgId?: number;
 }
 
 // Create message queue
 export const messageQueue = new Bull<MessageJobData>('message-relay', bullRedisConfig);
 
-// Configure queue settings
-messageQueue.on('error', (error) => {
-    logger.error(`Queue error: ${error.message}`);
-});
-
-messageQueue.on('failed', (job, error) => {
-    logger.error(`Job ${job.id} failed: ${error.message}`);
-});
-
-messageQueue.on('completed', (job) => {
-    logger.debug(`Job ${job.id} completed successfully`);
-});
+// ... (listeners)
 
 /**
  * Add a message job to the queue with delay
  */
 export async function addToQueue(data: MessageJobData): Promise<Job<MessageJobData>> {
-    // Random delay between 500ms-1500ms to appear natural but fast
     const delay = Math.floor(Math.random() * 1000) + 500;
 
     const job = await messageQueue.add(data, {
@@ -57,7 +46,7 @@ export async function addToQueue(data: MessageJobData): Promise<Job<MessageJobDa
  * Process message jobs from the queue
  */
 export async function processMessage(job: Job<MessageJobData>): Promise<void> {
-    const { botToken, botId, groupId, groupTelegramId, respondingBotUsername, personality } = job.data;
+    const { botToken, botId, groupId, groupTelegramId, respondingBotUsername, personality, replyToMsgId } = job.data;
 
     logger.info(`Processing message job ${job.id} for bot @${respondingBotUsername}`);
 
@@ -87,10 +76,10 @@ export async function processMessage(job: Job<MessageJobData>): Promise<void> {
             respondingBotUsername
         );
 
-        // Send message to Telegram
-        const messageId = await sendMessage(botToken, groupTelegramId, responseText);
+        // Send message to Telegram (with Reply ID if present)
+        const sentMessageId = await sendMessage(botToken, groupTelegramId, responseText, replyToMsgId);
 
-        if (messageId) {
+        if (sentMessageId) {
             // Store the sent message
             await prisma.message.create({
                 data: {
@@ -98,7 +87,7 @@ export async function processMessage(job: Job<MessageJobData>): Promise<void> {
                     groupId,
                     text: responseText,
                     isAiGenerated: true,
-                    telegramMsgId: BigInt(messageId),
+                    telegramMsgId: BigInt(sentMessageId),
                 },
             });
 
@@ -118,8 +107,9 @@ export async function processMessage(job: Job<MessageJobData>): Promise<void> {
                     groupTelegramId,
                     respondingBotUsername: nextBot.username,
                     personality: nextBot.personality,
+                    replyToMsgId: sentMessageId, // Pass the ID of the message we JUST sent, so next bot replies to US
                 });
-                logger.info(`Valid relay: Triggering response from @${nextBot.username}`);
+                logger.info(`Valid relay: Triggering response from @${nextBot.username} (Replying to Msg ${sentMessageId})`);
             } else {
                 logger.info('No other bots in group to continue conversation');
             }
