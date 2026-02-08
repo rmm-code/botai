@@ -103,6 +103,26 @@ export async function processMessage(job: Job<MessageJobData>): Promise<void> {
             });
 
             logger.info(`Bot @${respondingBotUsername} sent: ${responseText.substring(0, 50)}...`);
+
+            // AUTOMATIC RELAY: Since Telegram bots can't see each other's messages via API,
+            // we must manually trigger the next bot's response loop internally.
+            // Find the NEXT bot to respond (excluding the current one)
+            const nextBot = await selectNextBot(groupId, groupTelegramId, botId);
+
+            if (nextBot) {
+                // Determine next sender's delay (randomized for natural feel)
+                await addToQueue({
+                    botToken: nextBot.token,
+                    botId: nextBot.id,
+                    groupId,
+                    groupTelegramId,
+                    respondingBotUsername: nextBot.username,
+                    personality: nextBot.personality,
+                });
+                logger.info(`Valid relay: Triggering response from @${nextBot.username}`);
+            } else {
+                logger.info('No other bots in group to continue conversation');
+            }
         }
     } catch (error) {
         logger.error(`Message processing failed: ${(error as Error).message}`);
