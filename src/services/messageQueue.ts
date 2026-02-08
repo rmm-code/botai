@@ -64,7 +64,7 @@ export async function processMessage(job: Job<MessageJobData>): Promise<void> {
 
         // Build conversation context
         const conversationHistory = recentMessages.reverse().map((msg) => ({
-            botUsername: msg.bot.username,
+            botUsername: msg.isAiGenerated ? msg.bot.username : 'User', // Correctly attribute user messages
             text: msg.text,
             isAiGenerated: msg.isAiGenerated,
         }));
@@ -107,9 +107,10 @@ export async function processMessage(job: Job<MessageJobData>): Promise<void> {
                     groupTelegramId,
                     respondingBotUsername: nextBot.username,
                     personality: nextBot.personality,
-                    replyToMsgId: sentMessageId, // Pass the ID of the message we JUST sent, so next bot replies to US
+                    // DO NOT pass replyToMsgId here. Telegram API blocks bots replying to bots (Error 400).
+                    // We keep the conversation linear.
                 });
-                logger.info(`Valid relay: Triggering response from @${nextBot.username} (Replying to Msg ${sentMessageId})`);
+                logger.info(`Valid relay: Triggering response from @${nextBot.username}`);
             } else {
                 logger.info('No other bots in group to continue conversation');
             }
