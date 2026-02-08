@@ -79,6 +79,9 @@ async function generateWithOpenAI(
     const prefixRegex = new RegExp(`^@?${botUsername}:?\\s*`, 'i');
     text = text.replace(prefixRegex, '');
 
+    // Remove ANY mentions from the text (e.g. "hey @oshna")
+    text = text.replace(/@\w+/g, '').replace(/\s+/g, ' ').trim();
+
     logger.debug(`OpenAI response: ${text.substring(0, 100)}...`);
     return text;
 }
@@ -106,9 +109,12 @@ async function generateWithGemini(
     let text = result.response.text().trim();
     if (!text) throw new Error('Empty Gemini response');
 
-    // Remove bot username prefix if AI adds it
+    // Remove bot username prefix (e.g. "@botname: Hello") AND any other mentions
     const prefixRegex = new RegExp(`^@?${botUsername}:?\\s*`, 'i');
     text = text.replace(prefixRegex, '');
+
+    // Remove ANY mentions from the text (e.g. "hey @oshna")
+    text = text.replace(/@\w+/g, '').replace(/\s+/g, ' ').trim();
 
     logger.debug(`Gemini response: ${text.substring(0, 100)}...`);
     return text;
@@ -130,6 +136,7 @@ function buildSystemPrompt(personality: string, botUsername: string): string {
     6. Be opinionated, sassy, and quick-witted. Defend your points.
     7. FLAME WARS are allowed.
     8. ABSOLUTELY NO "As an AI" language. No hashtags.
+    9. NEVER type usernames or @mentions in your text. The reply feature handles it. JUST SPEAK.
     
     Example: "yo check this out lol"
     Example: "wait what?? that makes no sense"
