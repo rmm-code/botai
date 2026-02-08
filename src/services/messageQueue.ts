@@ -35,8 +35,8 @@ messageQueue.on('completed', (job) => {
  * Add a message job to the queue with delay
  */
 export async function addToQueue(data: MessageJobData): Promise<Job<MessageJobData>> {
-    // Random delay between 3-5 seconds to appear natural
-    const delay = Math.floor(Math.random() * 2000) + 3000;
+    // Random delay between 500ms-1500ms to appear natural but fast
+    const delay = Math.floor(Math.random() * 1000) + 500;
 
     const job = await messageQueue.add(data, {
         delay,

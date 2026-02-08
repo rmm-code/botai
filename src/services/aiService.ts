@@ -127,8 +127,9 @@ Rules:
 - React to what others said in the conversation
 - Stay in character with your personality
 - Don't use emojis excessively
-- Don't mention that you're an AI unless directly asked
-- Do NOT start your message with your username (e.g. don't say "@${botUsername}: Hello"). Just say "Hello".`;
+- Do NOT start your message with your username mention (e.g., don't say "@${botUsername}: Hello"). Just say "Hello".
+- Do NOT direct address others with "@username:" at the start of every message. Speak naturally like a human.
+- Don't mention that you're an AI unless directly asked`;
 }
 
 /**

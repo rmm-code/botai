@@ -74,18 +74,30 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
             })
             : null;
 
-        // Store the incoming message
-        await prisma.message.create({
-            data: {
-                botId: sendingBot?.id || bot.id,
-                groupId: group.id,
-                text: message.text!,
-                isAiGenerated: isFromBot && !!sendingBot,
-                telegramMsgId: BigInt(message.message_id),
-            },
-        });
+        // Store the message (if text exists) and avoid duplicates
+        if (message.text) {
+            const existingMessage = await prisma.message.findFirst({
+                where: {
+                    telegramMsgId: BigInt(message.message_id),
+                    groupId: group.id,
+                },
+            });
 
-        logger.info(`Message stored: ${message.text!.substring(0, 50)}... from ${senderUsername || 'user'}`);
+            if (!existingMessage) {
+                await prisma.message.create({
+                    data: {
+                        botId: sendingBot ? sendingBot.id : bot.id, // Assign to the bot receiving user message if needed
+                        groupId: group.id,
+                        text: message.text,
+                        isAiGenerated: !!sendingBot,
+                        telegramMsgId: BigInt(message.message_id),
+                    },
+                });
+                logger.info(`Message stored: ${message.text.substring(0, 20)}... from ${senderUsername || 'user'}`);
+            } else {
+                logger.debug(`Duplicate message ignored: ${message.message_id}`);
+            }
+        }
 
         // If message is from a user or another bot, trigger AI response
         // Don't respond to our own bot's messages
@@ -93,7 +105,8 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
             // Select next bot to respond
             const nextBot = await selectNextBot(group.id, group.telegramId, sendingBot?.id || '');
 
-            if (nextBot && nextBot.id !== (sendingBot?.id || '')) {
+            // Only queue if WE are the chosen one (prevents duplicate responses from multiple webhook hits)
+            if (nextBot && nextBot.id !== (sendingBot?.id || '') && nextBot.id === bot.id) {
                 // Initialize bot instance if not already
                 await initializeBot(nextBot.token);
 
