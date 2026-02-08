@@ -72,8 +72,12 @@ async function generateWithOpenAI(
         temperature: 0.8,
     });
 
-    const text = response.choices[0]?.message?.content?.trim();
+    let text = response.choices[0]?.message?.content?.trim();
     if (!text) throw new Error('Empty OpenAI response');
+
+    // Remove bot username prefix if AI adds it (e.g. "@botname: Hello")
+    const prefixRegex = new RegExp(`^@?${botUsername}:?\\s*`, 'i');
+    text = text.replace(prefixRegex, '');
 
     logger.debug(`OpenAI response: ${text.substring(0, 100)}...`);
     return text;
@@ -99,8 +103,12 @@ async function generateWithGemini(
         },
     });
 
-    const text = result.response.text().trim();
+    let text = result.response.text().trim();
     if (!text) throw new Error('Empty Gemini response');
+
+    // Remove bot username prefix if AI adds it
+    const prefixRegex = new RegExp(`^@?${botUsername}:?\\s*`, 'i');
+    text = text.replace(prefixRegex, '');
 
     logger.debug(`Gemini response: ${text.substring(0, 100)}...`);
     return text;
@@ -119,7 +127,8 @@ Rules:
 - React to what others said in the conversation
 - Stay in character with your personality
 - Don't use emojis excessively
-- Don't mention that you're an AI unless directly asked`;
+- Don't mention that you're an AI unless directly asked
+- Do NOT start your message with your username (e.g. don't say "@${botUsername}: Hello"). Just say "Hello".`;
 }
 
 /**
