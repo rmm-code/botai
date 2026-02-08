@@ -122,14 +122,15 @@ export function initializeQueueProcessor(): void {
  * Select the next bot to respond (round-robin)
  */
 export async function selectNextBot(
-    groupId: string,
+    groupUuid: string,
+    groupTelegramId: string,
     excludeBotId: string
 ): Promise<{ id: string; token: string; username: string; personality: string } | null> {
     try {
-        // Get all active bots in the group except the one that just sent
+        // Get all active bots in the group (using Telegram ID) except the one that just sent
         const bots = await prisma.bot.findMany({
             where: {
-                groupId,
+                groupId: groupTelegramId, // This is the Telegram Group ID
                 isActive: true,
                 id: { not: excludeBotId },
             },
@@ -137,12 +138,13 @@ export async function selectNextBot(
         });
 
         if (bots.length === 0) {
+            logger.warn(`No active bots found for group ${groupTelegramId}`);
             return null;
         }
 
-        // Get the last message to determine whose turn it is
+        // Get the last message to determine whose turn it is (using UUID)
         const lastMessage = await prisma.message.findFirst({
-            where: { groupId, isAiGenerated: true },
+            where: { groupId: groupUuid, isAiGenerated: true },
             orderBy: { timestamp: 'desc' },
         });
 

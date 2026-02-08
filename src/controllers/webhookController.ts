@@ -91,7 +91,7 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
         // Don't respond to our own bot's messages
         if (!sendingBot || sendingBot.id !== bot.id) {
             // Select next bot to respond
-            const nextBot = await selectNextBot(group.id, sendingBot?.id || '');
+            const nextBot = await selectNextBot(group.id, group.telegramId, sendingBot?.id || '');
 
             if (nextBot && nextBot.id !== (sendingBot?.id || '')) {
                 // Initialize bot instance if not already
